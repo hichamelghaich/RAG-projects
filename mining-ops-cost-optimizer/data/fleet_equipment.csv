@@ -1,0 +1,25 @@
+equipment_id,type,etape,date_mise_en_service,maintenance_interval_heures
+FOR-01,Foreuse,forage,2023-02-04,250
+FOR-02,Foreuse,forage,2023-07-31,250
+FOR-03,Foreuse,forage,2022-11-23,250
+FOR-04,Foreuse,forage,2022-03-06,250
+PEL-01,Pelle hydraulique,chargement,2023-11-13,300
+PEL-02,Pelle hydraulique,chargement,2023-10-19,300
+PEL-03,Pelle hydraulique,chargement,2021-09-13,300
+PEL-04,Pelle hydraulique,chargement,2022-07-02,300
+PEL-05,Pelle hydraulique,chargement,2023-09-27,300
+CAM-01,Camion minier,transport,2022-12-23,400
+CAM-02,Camion minier,transport,2022-05-15,400
+CAM-03,Camion minier,transport,2023-11-03,400
+CAM-04,Camion minier,transport,2022-07-31,400
+CAM-05,Camion minier,transport,2023-05-27,400
+CAM-06,Camion minier,transport,2023-11-24,400
+CAM-07,Camion minier,transport,2023-10-05,400
+CAM-08,Camion minier,transport,2022-10-14,400
+CAM-09,Camion minier,transport,2022-10-30,400
+CAM-10,Camion minier,transport,2023-10-22,400
+CAM-11,Camion minier,transport,2023-04-30,400
+CAM-12,Camion minier,transport,2023-10-01,400
+GEN-01,Groupe électrogène,energie,2022-06-16,500
+GEN-02,Groupe électrogène,energie,2022-10-24,500
+GEN-03,Groupe électrogène,energie,2023-11-02,500
