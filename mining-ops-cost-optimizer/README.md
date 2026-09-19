@@ -2,26 +2,33 @@
 
 Projet de modélisation appliqué à une chaîne opérationnelle minière —
 **forage → sautage → chargement → transport → énergie** — combinant
-**décomposition et suivi des coûts**, **maintenance prédictive** (risque de
-panne à 7 jours) et **optimisation** (recherche opérationnelle : arbitrage
-flotte propre / sous-traitance pour atteindre un objectif de production au
-moindre coût).
+**décomposition et suivi des coûts**, **simulation Monte Carlo** (risque de
+dépassement de budget / d'objectif de tonnage) et **optimisation**
+(recherche opérationnelle : arbitrage flotte propre / sous-traitance pour
+atteindre un objectif de production au moindre coût).
 
+> ⚠️ **Données 100% synthétiques.** Ce dépôt est un démonstrateur technique.
+> Le jeu de données (KPI quotidiens, flotte d'équipements, disponibilité
+> journalière) est entièrement généré par script
+> (`data/generate_synthetic_data.py`, graine aléatoire fixe) et ne
+> représente **aucun site, équipement ou entreprise réel**. Les débits
+> horaires par étape sont des paramètres stylisés (voir *Limites*), pas des
+> ratios d'ingénierie minière réels.
 
 ## Pourquoi ce projet
 
 Ce projet reproduit, en miniature, le type de problème traité au quotidien
 en exploitation minière : piloter le coût à la tonne sur l'ensemble de la
-chaîne opérationnelle, anticiper les pannes d'équipement pour sécuriser la
-disponibilité de la flotte, et arbitrer entre moyens propres et
-sous-traitance pour tenir un objectif de production. Il complète un premier
-projet ([`rag-logistics-forecast-assistant`](../rag-logistics-forecast-assistant))
+chaîne opérationnelle, quantifier le risque de dépasser un budget ou de
+manquer un objectif de production, et arbitrer entre moyens propres et
+sous-traitance pour tenir cet objectif. Il complète un premier projet
+([`rag-logistics-forecast-assistant`](../rag-logistics-forecast-assistant))
 centré sur RAG/LLM/IA agentique : celui-ci se concentre sur la
-**modélisation statistique, la maintenance prédictive et la recherche
-opérationnelle appliquées à une problématique opérationnelle concrète**,
-directement dans la continuité d'une expérience terrain en exploitation
-minière (pilotage d'opérations, optimisation des coûts forage-sautage-
-chargement-transport-énergie, suivi HSE et disponibilité de flotte).
+**modélisation statistique, la simulation et la recherche opérationnelle
+appliquées à une problématique opérationnelle concrète**, directement dans
+la continuité d'une expérience terrain en exploitation minière (pilotage
+d'opérations, optimisation des coûts forage-sautage-chargement-transport-
+énergie, suivi HSE et disponibilité de flotte).
 
 ## Architecture
 
@@ -31,15 +38,15 @@ data/generate_synthetic_data.py
         ▼
 ┌───────────────────┐   ┌────────────────────┐   ┌──────────────────────┐
 │ daily_kpi.csv      │   │ fleet_equipment.csv │   │ equipment_daily.csv   │
-│ (coût/tonne par    │   │ (référentiel flotte) │   │ (heures, usure,       │
-│  étape, dispo, HSE)│   │                      │   │  pannes, panel jour)  │
+│ (coût/tonne par    │   │ (référentiel flotte) │   │ (heures opérées,      │
+│  étape, dispo, HSE)│   │                      │   │  disponibilité/jour)  │
 └─────────┬──────────┘   └──────────┬───────────┘   └───────────┬───────────┘
           │                          │                            │
           ▼                          └──────────────┬─────────────┘
  src/cost_model.py                                   ▼
- (décomposition, tendance,                 src/predictive_maintenance.py
-  alertes coût)                            (régression logistique,
-          │                                 risque de panne à 7 jours)
+ (décomposition, tendance,                 src/simulation.py
+  alertes coût)                            (Monte Carlo par
+          │                                 ré-échantillonnage historique)
           │                                            │
           └───────────────────┬────────────────────────┘
                                ▼
@@ -59,9 +66,9 @@ data/generate_synthetic_data.py
 |---|---|---|
 | Données | génération synthétique (Python `csv`/`random`) | KPI quotidiens 18 mois + panel équipement 24 machines |
 | Modèle de coûts | pandas | décomposition par étape, tendance hebdomadaire, alerte mois/mois |
-| Maintenance prédictive | scikit-learn (régression logistique, split temporel) | risque de panne à 7 jours par équipement |
+| Simulation | NumPy (bootstrap / Monte Carlo) | risque de dépassement de budget ou de manquer un objectif de tonnage |
 | Optimisation | scipy.optimize (`linprog`, méthode HiGHS) | arbitrage flotte propre / sous-traitance au moindre coût |
-| Interface | Streamlit (`app.py`) | 4 onglets : vue d'ensemble, coûts, maintenance, optimisation |
+| Interface | Streamlit (`app.py`) | 4 onglets : vue d'ensemble, coûts, simulation, optimisation |
 | Notebook | Jupyter (`notebooks/demo.ipynb`) | walkthrough complet |
 
 ## Installation
@@ -85,7 +92,7 @@ Génère :
 - `data/fleet_equipment.csv` — 24 équipements simulés (foreuses, pelles,
   camions, groupes électrogènes)
 - `data/equipment_daily.csv` — panel quotidien par équipement (heures
-  opérées, usure, pannes, étiquette "panne sous 7 jours")
+  opérées, disponibilité)
 
 ### 2. Lancer le dashboard
 
@@ -111,14 +118,14 @@ pytest -q
 tendance hebdomadaire, détection d'écart mois-sur-mois. Équivalent direct
 d'un suivi de KPI / revue de performance en contrôle de gestion opérationnel.
 
-**`src/predictive_maintenance.py`** — un équipement qui tourne longtemps
-sans maintenance voit son risque de panne croître (modèle de type
-"hasard croissant" en fiabilité). Le modèle (régression logistique, split
-temporel pour ne jamais s'entraîner sur le futur) atteint un ROC AUC
-d'environ 0.70 sur données de test — un signal net mais pas artificiellement
-parfait, cohérent avec des données bruitées réalistes. Le dashboard classe
-les équipements par risque décroissant pour prioriser la maintenance
-préventive.
+**`src/simulation.py`** — plutôt que de supposer une loi de probabilité
+théorique, le modèle tire au hasard, avec remise (bootstrap), des journées
+réellement observées dans l'historique pour composer des milliers de
+scénarios plausibles d'un horizon futur (7 à 60 jours). Il en tire des
+distributions (P10/P50/P90) du coût à la tonne et du tonnage, et des
+probabilités concrètes de dépasser un budget ou de manquer un objectif de
+production — une approche simple, robuste et sans hypothèse forte, standard
+en gestion des risques opérationnels.
 
 **`src/optimization.py`** — pour un objectif de production sur 7 jours,
 détermine la répartition d'heures la moins coûteuse entre flotte propre
@@ -155,13 +162,14 @@ la flotte propre ou sous-traiter ponctuellement.
   pas de flotte d'équipement propre (souvent externalisé/évènementiel dans
   la réalité) ; il est traité comme un coût variable au tonnage, en dehors
   de l'arbitrage flotte propre / sous-traitance.
-- **Maintenance prédictive volontairement simple** : régression logistique
-  sur un nombre restreint de variables. Une version production
-  intégrerait des données capteurs (vibrations, température, débits) et
-  des modèles plus riches.
+- **Simulation par bootstrap historique** : simple et robuste, mais suppose
+  que les 180 derniers jours restent représentatifs du futur proche ; une
+  version plus avancée pondérerait les tirages ou modéliserait explicitement
+  une tendance/saisonnalité.
 - **Optimisation déterministe** : les capacités utilisées sont des moyennes
   historiques ; une version plus avancée traiterait la disponibilité comme
-  une variable aléatoire (optimisation robuste / sous incertitude).
+  une variable aléatoire (optimisation robuste / sous incertitude) — un pont
+  naturel avec le module de simulation.
 
 ## Structure du dépôt
 
@@ -172,16 +180,21 @@ la flotte propre ou sous-traiter ponctuellement.
 │   ├── generate_synthetic_data.py  # génération du jeu de données synthétique
 │   ├── daily_kpi.csv               # (généré) KPI quotidiens
 │   ├── fleet_equipment.csv         # (généré) référentiel flotte
-│   └── equipment_daily.csv         # (généré) panel quotidien équipement/pannes
+│   └── equipment_daily.csv         # (généré) panel quotidien équipement/disponibilité
 ├── notebooks/
 │   └── demo.ipynb                  # walkthrough complet de l'architecture
 ├── src/
 │   ├── config.py                   # chemins, étapes, débits, paramètres
 │   ├── cost_model.py                # décomposition et tendance des coûts
-│   ├── predictive_maintenance.py    # risque de panne à 7 jours (scikit-learn)
+│   ├── simulation.py                # simulation Monte Carlo (bootstrap historique)
 │   └── optimization.py              # arbitrage flotte propre / sous-traitance (scipy)
 ├── tests/
 │   └── test_pipeline.py            # tests de fumée (pytest)
 └── requirements.txt
 ```
 
+---
+
+*Projet réalisé dans le cadre d'une préparation de candidature autour des
+sujets modélisation / forecast / optimisation / simulation appliqués aux
+opérations minières et logistiques.*

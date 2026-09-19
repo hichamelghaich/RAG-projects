@@ -11,33 +11,29 @@ import streamlit as st
 
 from src import config
 from src.cost_model import load_daily_kpi, cost_breakdown, cost_trend, month_over_month_delta, summary_kpis
-from src.predictive_maintenance import load_equipment_daily, train_and_evaluate, current_risk_scores
 from src.optimization import run_scenario
+from src.simulation import run_monte_carlo
 
 st.set_page_config(page_title="Optimiseur de coûts opérationnels miniers", page_icon="⛏️", layout="wide")
 
 st.title("⛏️ Optimiseur de coûts opérationnels miniers")
 st.caption(
-    "⚠️ Démonstrateur technique — toutes les données (production, coûts, flotte, "
-    "pannes) sont **100% synthétiques**, générées par `data/generate_synthetic_data.py`. "
-    "Aucune donnée réelle d'aucun site minier n'est utilisée."
+    "⚠️ Démonstrateur technique — toutes les données (production, coûts, "
+    "disponibilité flotte) sont **100% synthétiques**, générées par "
+    "`data/generate_synthetic_data.py`. Aucune donnée réelle d'aucun site "
+    "minier n'est utilisée."
 )
 
 
 @st.cache_data(show_spinner="Chargement des données...")
 def get_data():
-    return load_daily_kpi(), load_equipment_daily()
+    return load_daily_kpi()
 
 
-@st.cache_resource(show_spinner="Entraînement du modèle de maintenance prédictive...")
-def get_maintenance_model():
-    return train_and_evaluate()
+kpi_df = get_data()
 
-
-kpi_df, eq_df = get_data()
-
-tab_overview, tab_cost, tab_maintenance, tab_optim = st.tabs(
-    ["📊 Vue d'ensemble", "💰 Coûts par étape", "🔧 Maintenance prédictive", "🧮 Optimisation flotte/sous-traitance"]
+tab_overview, tab_cost, tab_simulation, tab_optim = st.tabs(
+    ["📊 Vue d'ensemble", "💰 Coûts par étape", "🎲 Simulation (Monte Carlo)", "🧮 Optimisation flotte/sous-traitance"]
 )
 
 with tab_overview:
@@ -69,31 +65,41 @@ with tab_cost:
     st.bar_chart(breakdown)
     st.dataframe(breakdown.rename("USD/tonne").to_frame(), use_container_width=True)
 
-with tab_maintenance:
-    st.subheader("Modèle de risque de panne à 7 jours")
-    result = get_maintenance_model()
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("ROC AUC (test)", result["roc_auc"])
-    c2.metric("Précision", result["precision"])
-    c3.metric("Rappel", result["recall"])
-    c4.metric("Taux de base (test)", result["base_rate_test"])
+with tab_simulation:
+    st.subheader("Simulation Monte Carlo (ré-échantillonnage historique)")
+    st.markdown(
+        "Plutôt que de supposer une loi de probabilité théorique, le modèle "
+        "tire au hasard, avec remise, des journées réellement observées pour "
+        "composer des milliers de scénarios plausibles du mois à venir — une "
+        "façon simple et robuste de quantifier le risque de dépasser un "
+        "budget ou de manquer un objectif de tonnage."
+    )
+
+    recent_avg_cost = float(kpi_df["cout_total_usd_t"].tail(90).mean())
+    recent_avg_tonnage_month = float(kpi_df["tonnes_produites"].tail(90).mean()) * 30
+
+    horizon = st.slider("Horizon de simulation (jours)", 7, 60, 30, step=7)
+    budget = st.slider("Budget coût (USD/tonne)", round(recent_avg_cost * 0.9, 1),
+                        round(recent_avg_cost * 1.2, 1), round(recent_avg_cost * 1.02, 1), step=0.1)
+    target = st.slider("Objectif de tonnage sur l'horizon", int(recent_avg_tonnage_month * 0.7),
+                        int(recent_avg_tonnage_month * 1.1), int(recent_avg_tonnage_month * 0.95), step=1000)
+
+    sim = run_monte_carlo(horizon_days=horizon, cost_budget_usd_t=budget, tonnage_target=target)
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Coût médian (USD/t)", sim.cout_p50_usd_t)
+    c2.metric("P(coût > budget)", f"{sim.proba_depassement_budget:.0%}")
+    c3.metric("P(tonnage < objectif)", f"{sim.proba_sous_objectif:.0%}")
 
     st.caption(
-        f"Entraîné sur {result['n_train']} observations, évalué sur {result['n_test']} "
-        "(split temporel — le modèle n'est jamais entraîné sur le futur)."
+        f"Coût simulé sur {sim.n_simulations} scénarios : P10={sim.cout_p10_usd_t} · "
+        f"P50={sim.cout_p50_usd_t} · P90={sim.cout_p90_usd_t} USD/t — "
+        f"Tonnage : P10={sim.tonnage_p10:,} · P50={sim.tonnage_p50:,} · P90={sim.tonnage_p90:,}"
     )
 
-    st.subheader("Équipements à risque (score courant)")
-    risk_df = current_risk_scores(result["pipeline"], eq_df)
-    risk_df = risk_df.rename(columns={
-        "equipment_id": "Équipement", "etape": "Étape",
-        "heures_depuis_maintenance": "Heures depuis maintenance",
-        "ratio_usure": "Ratio d'usure", "risque_panne_7j": "Risque de panne (7j)",
-    })
-    st.dataframe(
-        risk_df.style.format({"Risque de panne (7j)": "{:.1%}", "Ratio d'usure": "{:.2f}"}),
-        use_container_width=True,
-    )
+    st.subheader("Distribution simulée du coût (USD/tonne)")
+    hist_df = pd.DataFrame({"cout_usd_t": sim.samples_cout})
+    st.bar_chart(hist_df["cout_usd_t"].value_counts(bins=30).sort_index())
 
 with tab_optim:
     st.subheader("Arbitrage flotte propre / sous-traitance")
