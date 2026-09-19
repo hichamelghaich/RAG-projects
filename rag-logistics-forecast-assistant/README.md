@@ -6,13 +6,6 @@ Assistant conversationnel qui combine **recherche documentaire augmentée
 (rapports, incidents, procédures) et indicateurs numériques (coûts, volumes,
 délais) sur un corridor logistique/minier.
 
-> ⚠️ **Données 100% synthétiques.** Ce dépôt est un démonstrateur technique.
-> Le jeu de données (KPI mensuels + rapports opérationnels + documents de
-> référence) est entièrement généré par script (`data/generate_synthetic_data.py`,
-> graine aléatoire fixe) et ne représente **aucune donnée réelle d'aucune
-> entreprise**. Aucune clé API payante n'est requise pour faire tourner le
-> projet.
-
 ---
 
 ## Pourquoi ce projet
@@ -114,7 +107,7 @@ pytest -q
 
 ## Exemples de questions
 
-| Question | Outil(s) déclenché(s) | Ce que ça montre |
+| Question | Outils déclenchés| Ce que ça montre |
 |---|---|---|
 | *« Quelle sera l'évolution du coût par tonne dans les 3 prochains mois ? »* | `forecast_kpi` | routage vers le forecast, extraction automatique de la métrique et de l'horizon |
 | *« Pourquoi le taux de disponibilité de la flotte a-t-il baissé en novembre 2023 ? »* | `search_reports` | retrieval RAG + réponse sourcée sur un rapport mensuel précis |
@@ -178,8 +171,3 @@ planter.
 │   └── test_pipeline.py            # tests de fumée (pytest)
 └── requirements.txt
 ```
-
----
-
-*Projet réalisé dans le cadre d'une préparation de candidature autour des
-sujets LLM / RAG / IA agentique appliqués à la logistique et au forecast.*
