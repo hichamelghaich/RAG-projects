@@ -44,5 +44,3 @@ STAGE_THROUGHPUT_T_PER_H = {
 # flotte propre / sous-traitance, comme un coût variable au tonnage (voir
 # src/optimization.py).
 OPT_STAGES = ["forage", "chargement", "transport", "energie"]
-
-MAINTENANCE_HORIZON_DAYS = 7

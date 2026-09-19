@@ -25,8 +25,7 @@ import pandas as pd
 from scipy.optimize import linprog
 
 from src import config
-from src.cost_model import load_daily_kpi
-from src.predictive_maintenance import load_equipment_daily
+from src.cost_model import load_daily_kpi, load_equipment_daily
 
 
 @dataclass

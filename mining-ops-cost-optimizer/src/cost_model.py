@@ -14,6 +14,11 @@ def load_daily_kpi() -> pd.DataFrame:
     return df.sort_values("date").reset_index(drop=True)
 
 
+def load_equipment_daily() -> pd.DataFrame:
+    df = pd.read_csv(config.EQUIPMENT_DAILY_CSV, parse_dates=["date"])
+    return df.sort_values(["equipment_id", "date"]).reset_index(drop=True)
+
+
 def cost_breakdown(df: pd.DataFrame = None, period: str = "all") -> pd.Series:
     """Retourne le coût moyen par tonne pour chaque étape sur la période
     demandée ('all', 'last_30d', 'last_90d')."""
