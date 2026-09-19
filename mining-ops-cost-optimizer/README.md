@@ -185,8 +185,3 @@ la flotte propre ou sous-traiter ponctuellement.
 └── requirements.txt
 ```
 
----
-
-*Projet réalisé dans le cadre d'une préparation de candidature autour des
-sujets modélisation / forecast / optimisation / simulation appliqués aux
-opérations minières et logistiques.*
