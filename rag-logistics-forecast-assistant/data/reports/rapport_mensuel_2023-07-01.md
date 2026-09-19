@@ -1,0 +1,20 @@
+# Rapport mensuel — juillet 2023
+**Corridor Logistique Sud (SIMULÉ) — Site Minier Fictif — Terminal Portuaire Fictif**
+*Document simulé à des fins de démonstration technique (aucune donnée réelle)*
+
+## Résumé du mois
+Le volume transporté s'est établi à **162,719 tonnes**, pour un coût moyen de
+**28.06 USD/tonne**. Le délai de livraison moyen constaté est de **3.33 jours**,
+avec un taux de disponibilité de la flotte de **90.6%**.
+
+## Faits marquants
+Aucun événement majeur à signaler, activité conforme au plan.
+
+## Indicateurs HSE
+1 incident HSE mineur enregistré, sans impact opérationnel significatif.
+
+## Stock intermédiaire
+Le stock tampon en fin de mois s'élève à **42,903 tonnes**, dans la fourchette cible.
+
+## Points de vigilance pour le mois suivant
+Poursuivre le suivi rapproché du taux de disponibilité de la flotte.
