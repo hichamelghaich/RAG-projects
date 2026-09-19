@@ -1,0 +1,14 @@
+# --- Cœur du projet (aucune clé API requise) ---
+pandas>=2.0
+numpy>=1.24
+scikit-learn>=1.3
+faiss-cpu>=1.7
+statsmodels>=0.14
+streamlit>=1.30
+
+# --- Optionnel : backends "production" ---
+# sentence-transformers>=2.5   # embeddings denses locaux (src/embeddings.py)
+# openai>=1.30                 # génération LLM + function calling (src/llm_backend.py, src/agent.py)
+
+# --- Dev / tests ---
+pytest>=7.4
