@@ -1,5 +1,5 @@
-"""Tests de fumée (smoke tests) pour le modèle de coûts, la maintenance
-prédictive et le module d'optimisation.
+"""Tests de fumée (smoke tests) pour le modèle de coûts, la simulation
+Monte Carlo et le module d'optimisation.
 
 Lancer avec : pytest -q
 """
@@ -10,8 +10,8 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src import config
-from src.cost_model import load_daily_kpi, cost_breakdown, summary_kpis, month_over_month_delta
-from src.predictive_maintenance import load_equipment_daily, train_and_evaluate, current_risk_scores
+from src.cost_model import load_daily_kpi, load_equipment_daily, cost_breakdown, summary_kpis, month_over_month_delta
+from src.simulation import run_monte_carlo
 from src.optimization import run_scenario
 
 
@@ -38,16 +38,33 @@ def test_cost_model_breakdown_and_summary():
     assert "delta_pct" in delta
 
 
-def test_predictive_maintenance_trains_and_scores():
+def test_equipment_daily_loads():
     eq = load_equipment_daily()
-    result = train_and_evaluate(eq)
-    assert result["n_train"] > 0 and result["n_test"] > 0
-    assert result["roc_auc"] is None or 0.0 <= result["roc_auc"] <= 1.0
+    assert len(eq) > 0
+    assert set(["equipment_id", "etape", "heures_operees", "disponible"]).issubset(eq.columns)
+    assert eq["disponible"].isin([0, 1]).all()
 
-    risk = current_risk_scores(result["pipeline"], eq)
-    assert set(risk["risque_panne_7j"].between(0, 1))
-    # une ligne par équipement de la flotte
-    assert risk["equipment_id"].nunique() == len(risk)
+
+def test_monte_carlo_simulation_is_consistent():
+    kpi = load_daily_kpi()
+    budget = kpi["cout_total_usd_t"].mean() * 1.02
+    target = kpi["tonnes_produites"].mean() * 30 * 0.95
+
+    sim = run_monte_carlo(horizon_days=30, n_simulations=2000, cost_budget_usd_t=budget, tonnage_target=target)
+    assert sim.cout_p10_usd_t <= sim.cout_p50_usd_t <= sim.cout_p90_usd_t
+    assert sim.tonnage_p10 <= sim.tonnage_p50 <= sim.tonnage_p90
+    assert 0.0 <= sim.proba_depassement_budget <= 1.0
+    assert 0.0 <= sim.proba_sous_objectif <= 1.0
+    assert len(sim.samples_cout) == 2000
+
+
+def test_monte_carlo_wider_horizon_narrows_relative_cost_spread():
+    short = run_monte_carlo(horizon_days=7, n_simulations=2000)
+    long = run_monte_carlo(horizon_days=60, n_simulations=2000)
+    short_spread = short.cout_p90_usd_t - short.cout_p10_usd_t
+    long_spread = long.cout_p90_usd_t - long.cout_p10_usd_t
+    # moyenner sur un horizon plus long réduit la dispersion du coût moyen simulé
+    assert long_spread < short_spread
 
 
 def test_optimization_scenario_is_feasible_and_consistent():
