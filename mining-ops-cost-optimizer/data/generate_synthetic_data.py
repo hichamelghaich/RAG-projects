@@ -12,7 +12,7 @@ Sortie :
                                      étape, disponibilité flotte, HSE)
     data/fleet_equipment.csv     -> référentiel des équipements simulés
     data/equipment_daily.csv     -> panel quotidien par équipement
-                                     (heures, maintenance, pannes)
+                                     (heures opérées, disponibilité)
 """
 
 import csv
@@ -69,9 +69,6 @@ def build_fleet():
                 "type": type_name,
                 "etape": stage,
                 "date_mise_en_service": (START_DATE - timedelta(days=commission_offset)).isoformat(),
-                "maintenance_interval_heures": {
-                    "forage": 250, "chargement": 300, "transport": 400, "energie": 500,
-                }[stage],
             })
             eq_id += 1
     return fleet
@@ -85,71 +82,45 @@ def write_fleet_csv(fleet):
     print(f"[ok] {FLEET_PATH} ({len(fleet)} équipements)")
 
 
-# --- 2. Panel quotidien par équipement (heures, maintenance, pannes) ---
+# --- 2. Panel quotidien par équipement (heures opérées, disponibilité) ---
+#
+# Chaque équipement a une probabilité quotidienne d'indisponibilité (arrêt
+# opérationnel : incident, aléa logistique, immobilisation ponctuelle...).
+# C'est uniquement ce qui fait varier la disponibilité de flotte et, via
+# elle, le coût par tonne — au même titre qu'un aléa météo ou logistique
+# dans la réalité.
+
+STAGE_DOWNTIME_RATE = {
+    "forage": 0.045,
+    "chargement": 0.035,
+    "transport": 0.035,
+    "energie": 0.02,
+}
+
 
 def build_equipment_daily(fleet, days):
     rows = []
-    state = {
-        eq["equipment_id"]: {"heures_cumulees": random.uniform(200, 3000),
-                              "heures_depuis_maintenance": random.uniform(0, eq["maintenance_interval_heures"])}
-        for eq in fleet
-    }
-
     for d in days:
+        seasonal_bump = 0.015 if d.month in (7, 8) else 0.0  # aléas plus fréquents en été (chaleur, effectifs réduits)
         for eq in fleet:
-            eq_id = eq["equipment_id"]
-            interval = eq["maintenance_interval_heures"]
-            s = state[eq_id]
+            stage = eq["etape"]
+            downtime_rate = STAGE_DOWNTIME_RATE[stage] + seasonal_bump
+            indisponible = 1 if random.random() < downtime_rate else 0
 
-            # risque de panne = fonction de type "hasard croissant" (reliability
-            # engineering) : croît fortement une fois l'intervalle de
-            # maintenance nominal dépassé (ratio_usure > 1).
-            usure_ratio = s["heures_depuis_maintenance"] / interval
-            proba_panne = min(0.45, 0.004 + 0.05 * usure_ratio ** 3)
-            panne = 1 if random.random() < proba_panne else 0
-
-            # maintenance préventive programmée : une fois l'intervalle nominal
-            # dépassé, une intervention a de bonnes chances d'être déclenchée
-            # avant la panne -- mais pas toujours (retards opérationnels réalistes).
-            preventive = (not panne) and usure_ratio >= 1.0 and random.random() < 0.20
-
-            if panne or preventive:
+            if indisponible:
                 heures_operees = 0.0
-                s["heures_depuis_maintenance"] = 0.0  # panne ou maintenance -> reset
             else:
-                heures_operees = max(0.0, random.gauss(18, 3)) if eq["etape"] != "energie" else max(0.0, random.gauss(22, 2))
+                heures_operees = max(0.0, random.gauss(18, 3)) if stage != "energie" else max(0.0, random.gauss(22, 2))
                 heures_operees = min(24.0, heures_operees)
-                s["heures_cumulees"] += heures_operees
-                s["heures_depuis_maintenance"] += heures_operees
 
             rows.append({
                 "date": d.isoformat(),
-                "equipment_id": eq_id,
-                "etape": eq["etape"],
+                "equipment_id": eq["equipment_id"],
+                "etape": stage,
                 "heures_operees": round(heures_operees, 2),
-                "heures_cumulees": round(s["heures_cumulees"], 1),
-                "heures_depuis_maintenance": round(s["heures_depuis_maintenance"], 1),
-                "ratio_usure": round(min(3.0, (s["heures_depuis_maintenance"] / interval)), 3),
-                "panne": panne,
+                "disponible": 0 if indisponible else 1,
             })
 
-    return rows
-
-
-def add_forward_labels(rows, horizon_days=7):
-    """Ajoute une étiquette binaire 'panne_sous_7j' = 1 si l'équipement tombe
-    en panne dans les `horizon_days` jours suivants (panel triée par équipement/date)."""
-    from collections import defaultdict
-    by_eq = defaultdict(list)
-    for r in rows:
-        by_eq[r["equipment_id"]].append(r)
-
-    for eq_id, eq_rows in by_eq.items():
-        eq_rows.sort(key=lambda r: r["date"])
-        n = len(eq_rows)
-        for i in range(n):
-            window = eq_rows[i+1:i+1+horizon_days]
-            eq_rows[i]["panne_sous_7j"] = 1 if any(w["panne"] == 1 for w in window) else 0
     return rows
 
 
@@ -189,8 +160,8 @@ def build_daily_kpi(days, equipment_rows, fleet):
         for stage in STAGES:
             stage_eq_rows = [r for r in day_eq_rows if r["etape"] == stage]
             total_eq = len(fleet_by_stage[stage])
-            en_panne = sum(1 for r in stage_eq_rows if r["panne"] == 1)
-            dispo = 1 - (en_panne / total_eq if total_eq else 0)
+            indisponibles = sum(1 for r in stage_eq_rows if r["disponible"] == 0)
+            dispo = 1 - (indisponibles / total_eq if total_eq else 0)
             dispo_par_etape[stage] = dispo
 
             # coût par tonne de l'étape : hausse si disponibilité faible (recours à des
@@ -237,7 +208,6 @@ def main():
     write_fleet_csv(fleet)
 
     equipment_rows = build_equipment_daily(fleet, days)
-    equipment_rows = add_forward_labels(equipment_rows, horizon_days=7)
     write_equipment_daily_csv(equipment_rows)
 
     daily_kpi_rows = build_daily_kpi(days, equipment_rows, fleet)
