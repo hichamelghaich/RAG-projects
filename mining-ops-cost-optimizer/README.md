@@ -7,12 +7,6 @@ panne à 7 jours) et **optimisation** (recherche opérationnelle : arbitrage
 flotte propre / sous-traitance pour atteindre un objectif de production au
 moindre coût).
 
-> ⚠️ **Données 100% synthétiques.** Ce dépôt est un démonstrateur technique.
-> Le jeu de données (KPI quotidiens, flotte d'équipements, historique de
-> pannes) est entièrement généré par script (`data/generate_synthetic_data.py`,
-> graine aléatoire fixe) et ne représente **aucun site, équipement ou
-> entreprise réel**. Les débits horaires par étape sont des paramètres
-> stylisés (voir *Limites*), pas des ratios d'ingénierie minière réels.
 
 ## Pourquoi ce projet
 
